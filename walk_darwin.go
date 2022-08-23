@@ -1,6 +1,8 @@
 package lsf
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,12 +33,18 @@ func readdir_r(dir uintptr, entry *syscall.Dirent, result **syscall.Dirent) (res
 //go:linkname fdopendir syscall.fdopendir
 func fdopendir(fd int) (dir uintptr, err error)
 
-func walk(c chan string, pfd int, p string) {
+func (m *manager) walk(_ int, p string) {
+	defer m.pendingJobs.Done()
+
 	fd, err := syscall.Open(p, flags, 0o777)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "%v\n", p)
 		panic(err)
 	}
-
 	defer syscall.Close(fd)
 
 	if fd < 0 {
@@ -48,18 +56,15 @@ func walk(c chan string, pfd int, p string) {
 		panic(err)
 	}
 
-	// todo: make sync.Pool
-	wg := sync.WaitGroup{}
-
-	//nolint:forcetypeassert since these are pools they're never not going to be []byte
+	//nolint:forcetypeassert // since these are pools they're never not going to be []byte
 	buf := bufPool.Get().([]byte)
 	defer bufPool.Put(buf)
 
-	//nolint:forcetypeassert since these are pools they're never not going to be *syscall.Dirent
+	//nolint:forcetypeassert // since these are pools they're never not going to be *syscall.Dirent
 	dirent := direntPool.Get().(*syscall.Dirent)
 	defer direntPool.Put(dirent)
 
-	//nolint:forcetypeassert since these are pools they're never not going to be *syscall.Dirent
+	//nolint:forcetypeassert // since these are pools they're never not going to be *syscall.Dirent
 	entptr := direntPool.Get().(*syscall.Dirent)
 	defer direntPool.Put(entptr)
 
@@ -98,17 +103,14 @@ func walk(c chan string, pfd int, p string) {
 
 		switch dirent.Type {
 		case syscall.DT_REG:
-			c <- path
+			m.out <- path
 		case syscall.DT_DIR:
-			wg.Add(1)
+			m.pendingJobs.Add(1)
 			go func() {
-				walk(c, fd, path)
-				wg.Done()
+				m.queue <- job{fd, path}
 			}()
 		default:
 			continue
 		}
 	}
-
-	wg.Wait()
 }

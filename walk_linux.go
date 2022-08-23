@@ -2,6 +2,7 @@ package lsf
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,21 +34,6 @@ var (
 	}
 )
 
-func openat(dirfd int, path string, flags int, perm uint32) (int, error) {
-	var p *byte
-	p, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return 0, err
-	}
-
-	fd, _, errno := syscall.Syscall6(openatTrap, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(flags), uintptr(perm), 0, 0)
-	if errno != 0 {
-		return 0, errno
-	}
-
-	return int(fd), nil
-}
-
 func nameFromDirent(de *syscall.Dirent) (name []byte) {
 	// Because this GOOS' syscall.Dirent does not provide a field that specifies
 	// the name length, this function must first calculate the max possible name
@@ -76,10 +62,17 @@ func nameFromDirent(de *syscall.Dirent) (name []byte) {
 	return
 }
 
-func walk(c chan string, pfd int, p string) {
-	b := filepath.Base(p)
-	fd, err := openat(pfd, b, flags, 0o777)
+func (m *manager) walk(pfd int, p string) {
+	defer m.pendingJobs.Done()
+
+	// fd, err := openat(pfd, filepath.Base(p), flags, 0o777)
+	fd, err := syscall.Open(p, flags, 0o777)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return
+		}
+
+		fmt.Fprintf(os.Stderr, "%v\n", p)
 		panic(err)
 	}
 
@@ -88,9 +81,6 @@ func walk(c chan string, pfd int, p string) {
 	if fd < 0 {
 		return
 	}
-
-	// todo: make sync.Pool
-	wg := sync.WaitGroup{}
 
 	//nolint:forcetypeassert
 	buf := bufPool.Get().([]byte)
@@ -128,18 +118,15 @@ func walk(c chan string, pfd int, p string) {
 
 			switch dirent.Type {
 			case syscall.DT_REG:
-				c <- path
+				m.out <- path
 			case syscall.DT_DIR:
-				wg.Add(1)
+				m.pendingJobs.Add(1)
 				go func() {
-					walk(c, fd, path)
-					wg.Done()
+					m.queue <- job{fd, path}
 				}()
 			default:
 				continue
 			}
 		}
 	}
-
-	wg.Wait()
 }
