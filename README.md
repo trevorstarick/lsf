@@ -1,0 +1,2 @@
+# lsf
+ faster recursive ls
