@@ -3,7 +3,6 @@ package lsf
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 )
 
@@ -18,7 +17,11 @@ type manager struct {
 	queue       chan job
 }
 
-func Walk(c chan string, p string) {
+func Walk(c chan string, p string, mx int) {
+	if mx < 1 {
+		mx = 1
+	}
+
 	var err error
 	p, err = filepath.Abs(p)
 	if err != nil {
@@ -35,7 +38,7 @@ func Walk(c chan string, p string) {
 	m.out = c
 	m.queue = make(chan job)
 
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < mx; i++ {
 		go func() {
 			for j := range m.queue {
 				m.walk(j.pd, j.p)

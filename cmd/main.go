@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/trevorstarick/lsf"
 )
@@ -23,7 +24,7 @@ func main() {
 			}
 		}()
 
-		lsf.Walk(c, path)
+		lsf.Walk(c, path, runtime.NumCPU()*8)
 	}
 
 	close(c)
