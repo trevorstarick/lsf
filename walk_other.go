@@ -2,6 +2,8 @@
 
 package lsf
 
-func walk(c chan string, pfd int, p string) {
-	panic("this GOOS/GOARCH combo is not currently supported by lsf")
+import "errors"
+
+func walk(c chan string, pfd int, p string) error {
+	return errors.New("this GOOS/GOARCH combo is not currently supported by lsf")
 }

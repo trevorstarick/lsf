@@ -1,8 +1,10 @@
 package lsf
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 )
 
@@ -17,20 +19,27 @@ type manager struct {
 	queue       chan job
 }
 
-func Walk(c chan string, p string, mx int) {
-	if mx < 1 {
-		mx = 1
+type Options struct {
+	noFlyDirRegex []*regexp.Regexp
+
+	MaxWorkers int
+	NoFlyDir   []string
+}
+
+func WalkWithOptions(c chan string, p string, opts Options) error {
+	if opts.MaxWorkers < 1 {
+		opts.MaxWorkers = 1
 	}
 
 	var err error
 	p, err = filepath.Abs(p)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	fi, err := os.Open(filepath.Dir(p))
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	m := new(manager)
@@ -38,16 +47,72 @@ func Walk(c chan string, p string, mx int) {
 	m.out = c
 	m.queue = make(chan job)
 
-	for i := 0; i < mx; i++ {
+	for _, rule := range opts.NoFlyDir {
+		re, err := regexp.Compile(rule)
+		if err != nil {
+			return err
+		}
+
+		opts.noFlyDirRegex = append(opts.noFlyDirRegex, re)
+	}
+
+	errs := make(chan error)
+
+	for i := 0; i < opts.MaxWorkers; i++ {
 		go func() {
+			var dupe bool
+
 			for j := range m.queue {
-				m.walk(j.pd, j.p)
+				dupe = false
+
+				for _, n := range opts.noFlyDirRegex {
+					if n.MatchString(j.p) {
+						dupe = true
+
+						break
+					}
+				}
+
+				if dupe {
+					continue
+				}
+
+				err = m.walk(j.pd, j.p)
+				if err != nil {
+					errs <- err
+
+					break
+				}
 			}
 		}()
 	}
 
 	m.pendingJobs.Add(1)
-	m.walk(int(fi.Fd()), p)
+	err = m.walk(int(fi.Fd()), p)
+	if err != nil {
+		return err
+	}
 
 	m.pendingJobs.Wait()
+
+	close(m.queue)
+	close(errs)
+
+	if len(errs) > 0 {
+		e := []error{}
+		for err := range errs {
+			e = append(e, err)
+		}
+
+		return errors.Join(e...)
+	}
+
+	return nil
+}
+
+func Walk(c chan string, p string) {
+	WalkWithOptions(c, p, Options{
+		MaxWorkers: 1,
+		NoFlyDir:   []string{},
+	})
 }

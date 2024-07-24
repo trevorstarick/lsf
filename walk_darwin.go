@@ -33,27 +33,27 @@ func readdir_r(dir uintptr, entry *syscall.Dirent, result **syscall.Dirent) (res
 //go:linkname fdopendir syscall.fdopendir
 func fdopendir(fd int) (dir uintptr, err error)
 
-func (m *manager) walk(_ int, p string) {
+func (m *manager) walk(_ int, p string) error {
 	defer m.pendingJobs.Done()
 
 	fd, err := syscall.Open(p, flags, 0o777)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			return
+			return fmt.Errorf("failed to open %s: %w", p, err)
 		}
 
 		fmt.Fprintf(os.Stderr, "%v\n", p)
-		panic(err)
+		return fmt.Errorf("failed to open %s: %w", p, err)
 	}
 	defer syscall.Close(fd)
 
 	if fd < 0 {
-		return
+		return fmt.Errorf("failed to open %s: %w", p, errors.New("invalid file descriptor"))
 	}
 
 	fdptr, err := fdopendir(fd)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to open %s: %w", p, err)
 	}
 
 	//nolint:forcetypeassert // since these are pools they're never not going to be []byte
@@ -73,7 +73,8 @@ func (m *manager) walk(_ int, p string) {
 			if errno == syscall.EINTR {
 				continue
 			}
-			panic(errno)
+
+			return fmt.Errorf("failed to open %s: %w", p, err)
 		}
 
 		if entptr == nil { // EOF
@@ -116,4 +117,6 @@ func (m *manager) walk(_ int, p string) {
 			continue
 		}
 	}
+
+	return nil
 }

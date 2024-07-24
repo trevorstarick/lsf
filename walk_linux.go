@@ -62,24 +62,24 @@ func nameFromDirent(de *syscall.Dirent) (name []byte) {
 	return
 }
 
-func (m *manager) walk(pfd int, p string) {
+func (m *manager) walk(pfd int, p string) error {
 	defer m.pendingJobs.Done()
 
 	// fd, err := openat(pfd, filepath.Base(p), flags, 0o777)
 	fd, err := syscall.Open(p, flags, 0o777)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			return
+			return fmt.Errorf("failed to open %s: %w", p, err)
 		}
 
 		fmt.Fprintf(os.Stderr, "%v\n", p)
-		panic(err)
+		return fmt.Errorf("failed to open %s: %w", p, err)
 	}
 
 	defer syscall.Close(fd)
 
 	if fd < 0 {
-		return
+		return fmt.Errorf("failed to open %s: %w", p, errors.New("invalid file descriptor"))
 	}
 
 	//nolint:forcetypeassert
@@ -93,7 +93,7 @@ func (m *manager) walk(pfd int, p string) {
 	for {
 		n, err := syscall.Getdents(fd, buf)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("failed to open %s: %w", p, err)
 		}
 
 		if n <= 0 {
@@ -129,4 +129,6 @@ func (m *manager) walk(pfd int, p string) {
 			}
 		}
 	}
+
+	return nil
 }
