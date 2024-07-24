@@ -110,8 +110,8 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 	return nil
 }
 
-func Walk(c chan string, p string) {
-	WalkWithOptions(c, p, Options{
+func Walk(c chan string, p string) error {
+	return WalkWithOptions(c, p, Options{
 		MaxWorkers: 1,
 		NoFlyDir:   []string{},
 	})
