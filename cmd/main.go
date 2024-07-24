@@ -27,7 +27,12 @@ func main() {
 			}
 		}()
 
-		lsf.Walk(c, path, runtime.NumCPU()*8)
+		err := lsf.WalkWithOptions(c, path, lsf.Options{
+			MaxWorkers: runtime.NumCPU() * 8,
+		})
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	close(c)
