@@ -17,9 +17,6 @@ func main() {
 		paths = []string{"."}
 	}
 
-	lsf.AddToIgnoreList(".git")
-	lsf.AddToIgnoreList("node_modules")
-
 	for _, path := range paths {
 		go func() {
 			for dirent := range c {
@@ -29,6 +26,10 @@ func main() {
 
 		err := lsf.WalkWithOptions(c, path, lsf.Options{
 			MaxWorkers: runtime.NumCPU() * 8,
+			NoFlyDir: []string{
+				".git",
+				"node_modules",
+			},
 		})
 		if err != nil {
 			panic(err)

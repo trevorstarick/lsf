@@ -24,6 +24,8 @@ type Options struct {
 
 	MaxWorkers int
 	NoFlyDir   []string
+	// FollowSymlinks bool
+	// MaxDepth       int
 }
 
 func WalkWithOptions(c chan string, p string, opts Options) error {

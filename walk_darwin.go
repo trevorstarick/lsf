@@ -105,10 +105,6 @@ func (m *manager) walk(_ int, p string) error {
 		case syscall.DT_REG:
 			m.out <- path
 		case syscall.DT_DIR:
-			if inIgnoreList(name) {
-				continue
-			}
-
 			m.pendingJobs.Add(1)
 			go func() {
 				m.queue <- job{fd, path}
