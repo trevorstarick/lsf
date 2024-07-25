@@ -2,6 +2,7 @@ package lsf
 
 import (
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,6 +22,8 @@ type manager struct {
 
 type Options struct {
 	noFlyDirRegex []*regexp.Regexp
+
+	Logger *slog.Logger
 
 	MaxWorkers int
 	NoFlyDir   []string
@@ -70,6 +73,13 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 				for _, n := range opts.noFlyDirRegex {
 					if n.MatchString(j.p) {
 						dupe = true
+
+						if opts.Logger != nil {
+							opts.Logger.Info("skipping directory",
+								"dir", j.p,
+								"rule", n.String(),
+							)
+						}
 
 						break
 					}
