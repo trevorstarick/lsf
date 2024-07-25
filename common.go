@@ -36,6 +36,15 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 		opts.MaxWorkers = 1
 	}
 
+	for _, rule := range opts.NoFlyDir {
+		re, err := regexp.Compile(rule)
+		if err != nil {
+			return err
+		}
+
+		opts.noFlyDirRegex = append(opts.noFlyDirRegex, re)
+	}
+
 	var err error
 	p, err = filepath.Abs(p)
 	if err != nil {
@@ -51,15 +60,6 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 	m.pendingJobs = sync.WaitGroup{}
 	m.out = c
 	m.queue = make(chan job)
-
-	for _, rule := range opts.NoFlyDir {
-		re, err := regexp.Compile(rule)
-		if err != nil {
-			return err
-		}
-
-		opts.noFlyDirRegex = append(opts.noFlyDirRegex, re)
-	}
 
 	errs := make(chan error)
 
@@ -86,6 +86,7 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 				}
 
 				if dupe {
+					m.pendingJobs.Done()
 					continue
 				}
 
@@ -107,7 +108,6 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 
 	m.pendingJobs.Wait()
 
-	close(m.queue)
 	close(errs)
 
 	if len(errs) > 0 {
