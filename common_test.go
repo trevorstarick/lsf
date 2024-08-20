@@ -20,6 +20,9 @@ func TestWalkWithOptions(t *testing.T) {
 		for _, d := range []string{
 			"node_modules",
 			"node_modules/some_module",
+			"applications/foo/bar/some.app",
+			"projects/foo/bar/node_modules",
+			"projects/foo/.git",
 			"tmp",
 			"tmpo",
 			"test.app",
@@ -35,6 +38,9 @@ func TestWalkWithOptions(t *testing.T) {
 			"tmp/trace.log",
 			"tmpo/tmp.txt",
 			"node_modules/some_module/index.js",
+			"projects/foo/.git/index",
+			"projects/foo/bar/node_modules/index.js",
+			"test.app/some_file",
 		} {
 			os.Create(filepath.Join(p, f))
 		}
@@ -47,10 +53,11 @@ func TestWalkWithOptions(t *testing.T) {
 
 		err := lsf.WalkWithOptions(c, p, lsf.Options{
 			Logger:     slog.New(slog.NewTextHandler(os.Stdout, nil)),
-			MaxWorkers: 8,
+			MaxWorkers: 1,
 			Ignore: []string{
 				"node_modules",
-				"**/*.app",
+				"*.app",
+				".git",
 				"tmp",
 			},
 		})

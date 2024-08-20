@@ -110,7 +110,12 @@ func (m *manager) walk(pfd int, p string) error {
 
 			name := nameFromDirent(dirent)
 
-			if len(name) == 0 || name[0] == '.' {
+			if len(name) == 0 {
+				continue
+			}
+
+			switch string(name) {
+			case ".", "..":
 				continue
 			}
 

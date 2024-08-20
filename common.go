@@ -2,13 +2,10 @@ package lsf
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
-
-	"github.com/bmatcuk/doublestar/v4"
 )
 
 type job struct {
@@ -54,11 +51,6 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 
 	errs := make(chan error)
 
-	ignore := make([]string, len(opts.Ignore))
-	for i, n := range opts.Ignore {
-		ignore[i] = filepath.Join(p, n)
-	}
-
 	for i := 0; i < opts.MaxWorkers; i++ {
 		go func() {
 			var dupe bool
@@ -66,15 +58,13 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 			for j := range m.queue {
 				dupe = false
 
-				for ignoreIndex, n := range ignore {
-					match, err := doublestar.Match(n, j.p)
-					// match, err := doublestar.PathMatch(n, j.p)
-					// match, err := filepath.Match(n, j.p)
+				baseDir := filepath.Base(j.p)
+
+				for _, n := range opts.Ignore {
+					match, err := filepath.Match(n, baseDir)
 					if err != nil {
 						errs <- err
 					}
-
-					fmt.Println(n, j.p, match)
 
 					if match {
 						dupe = true
@@ -82,7 +72,7 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 						if opts.Logger != nil {
 							opts.Logger.Info("skipping directory",
 								"dir", j.p,
-								"rule", opts.Ignore[ignoreIndex],
+								"rule", n,
 							)
 						}
 

@@ -87,7 +87,7 @@ func (m *manager) walk(_ int, p string) error {
 
 		name := (*[len(syscall.Dirent{}.Name)]byte)(unsafe.Pointer(&dirent.Name))[:]
 
-		if dirent.Namlen == 0 || name[0] == '.' {
+		if dirent.Namlen == 0 {
 			continue
 		}
 
@@ -97,6 +97,11 @@ func (m *manager) walk(_ int, p string) error {
 
 				break
 			}
+		}
+
+		switch string(name) {
+		case ".", "..":
+			continue
 		}
 
 		path := filepath.Join(p, string(name))
