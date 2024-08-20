@@ -2,11 +2,13 @@ package lsf
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sync"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 type job struct {
@@ -21,12 +23,10 @@ type manager struct {
 }
 
 type Options struct {
-	noFlyDirRegex []*regexp.Regexp
-
 	Logger *slog.Logger
 
 	MaxWorkers int
-	NoFlyDir   []string
+	Ignore     []string
 	// FollowSymlinks bool
 	// MaxDepth       int
 }
@@ -34,15 +34,6 @@ type Options struct {
 func WalkWithOptions(c chan string, p string, opts Options) error {
 	if opts.MaxWorkers < 1 {
 		opts.MaxWorkers = 1
-	}
-
-	for _, rule := range opts.NoFlyDir {
-		re, err := regexp.Compile(rule)
-		if err != nil {
-			return err
-		}
-
-		opts.noFlyDirRegex = append(opts.noFlyDirRegex, re)
 	}
 
 	var err error
@@ -63,6 +54,11 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 
 	errs := make(chan error)
 
+	ignore := make([]string, len(opts.Ignore))
+	for i, n := range opts.Ignore {
+		ignore[i] = filepath.Join(p, n)
+	}
+
 	for i := 0; i < opts.MaxWorkers; i++ {
 		go func() {
 			var dupe bool
@@ -70,14 +66,23 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 			for j := range m.queue {
 				dupe = false
 
-				for _, n := range opts.noFlyDirRegex {
-					if n.MatchString(j.p) {
+				for ignoreIndex, n := range ignore {
+					match, err := doublestar.Match(n, j.p)
+					// match, err := doublestar.PathMatch(n, j.p)
+					// match, err := filepath.Match(n, j.p)
+					if err != nil {
+						errs <- err
+					}
+
+					fmt.Println(n, j.p, match)
+
+					if match {
 						dupe = true
 
 						if opts.Logger != nil {
 							opts.Logger.Info("skipping directory",
 								"dir", j.p,
-								"rule", n.String(),
+								"rule", opts.Ignore[ignoreIndex],
 							)
 						}
 
@@ -125,6 +130,6 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 func Walk(c chan string, p string) error {
 	return WalkWithOptions(c, p, Options{
 		MaxWorkers: 1,
-		NoFlyDir:   []string{},
+		Ignore:     []string{},
 	})
 }

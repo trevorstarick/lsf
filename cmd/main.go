@@ -26,7 +26,7 @@ func main() {
 
 		err := lsf.WalkWithOptions(c, path, lsf.Options{
 			MaxWorkers: runtime.NumCPU() * 8,
-			NoFlyDir: []string{
+			Ignore: []string{
 				".git",
 				"node_modules",
 			},
