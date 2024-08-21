@@ -58,7 +58,7 @@ func (m *manager) walk(_ int, p string) error {
 
 	//nolint:forcetypeassert // since these are pools they're never not going to be []byte
 	buf := bufPool.Get().([]byte)
-	defer bufPool.Put(buf)
+	defer bufPool.Put(buf) // nolint:staticcheck // SA6002: value is pointer-like
 
 	//nolint:forcetypeassert // since these are pools they're never not going to be *syscall.Dirent
 	dirent := direntPool.Get().(*syscall.Dirent)
