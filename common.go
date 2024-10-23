@@ -53,13 +53,22 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 
 	for i := 0; i < opts.MaxWorkers; i++ {
 		go func() {
-			var dupe bool
-
+		iter:
 			for j := range m.queue {
-				dupe = false
+				if _, err := os.Stat(filepath.Join(j.p, ".ignoredir")); err == nil {
+					if opts.Logger != nil {
+						opts.Logger.Info("skipping directory",
+							"dir", j.p,
+							"rule", ".ignoredir",
+						)
+					}
+
+					m.pendingJobs.Done()
+
+					continue iter
+				}
 
 				baseDir := filepath.Base(j.p)
-
 				for _, n := range opts.Ignore {
 					match, err := filepath.Match(n, baseDir)
 					if err != nil {
@@ -67,8 +76,6 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 					}
 
 					if match {
-						dupe = true
-
 						if opts.Logger != nil {
 							opts.Logger.Info("skipping directory",
 								"dir", j.p,
@@ -76,13 +83,10 @@ func WalkWithOptions(c chan string, p string, opts Options) error {
 							)
 						}
 
-						break
-					}
-				}
+						m.pendingJobs.Done()
 
-				if dupe {
-					m.pendingJobs.Done()
-					continue
+						continue iter
+					}
 				}
 
 				err = m.walk(j.pd, j.p)
